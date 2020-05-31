@@ -264,12 +264,17 @@ function book (libJsonBook, shelf){
     default: 
       action = 'wants to read'
   }
+  var imageBlock = '';
+  if (libJsonBook.image && !libJsonBook.image.includes('nophoto')){
+    imageBlock = h('img', {src:libJsonBook.image})
+  }
   return (h('div', {class: 'json-lib-book', id: libJsonBook.id}, 
     h('em', action),
     h('h3', libJsonBook.title),
     h('div', { class: 'json-lib-book-content' }, 
       h('h4', {class: 'author'}, 'By ' + libJsonBook.author),
       h('div', {class: 'review'}, 
+        imageBlock,
         h('h5',  libJsonBook.reviews[0] ? libJsonBook.reviews[0].title : ''),
         h('p', libJsonBook.reviews[0] ? libJsonBook.reviews[0].content  : '')
       ),
