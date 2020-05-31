@@ -1,1 +1,24 @@
 
+<!doctype html>
+<html>
+  <head>
+    <link rel="icon" type="image/png" sizes="32x32" href="/thumb.png">
+    <link rel="stylesheet" href="/index.css">
+    <style id="override-styles">
+
+    </style>
+  </head>
+  <body>
+    <h1>My Library Feed</h1>
+    <microlibrary-loader></microlibrary-loader>
+    <microlibrary-shelf-select id="select-read" data-shelf="read" class="shelf-selected">Read</microlibrary-shelf-select>
+    <microlibrary-shelf-select id="select-currently-reading" data-shelf="currently-reading" class="shelf-selected">Currently Reading</microlibrary-shelf-select>
+    <microlibrary-shelf-select id="select-to-read" data-shelf="to-read" class="shelf-selected">To Read</microlibrary-shelf-select> <br /><br />
+    <microlibrary-feed>
+      <microlibrary-shelf id='shelf-is-read'></microlibrary-shelf>
+      <microlibrary-shelf id='shelf-is-to-read' style="display: none;"></microlibrary-shelf>
+      <microlibrary-shelf id='shelf-is-currently-reading' style="display: none;"></microlibrary-shelf>
+    </microlibrary-feed>
+  </body>
+  <script type="module" src="/index.js"></script>
+</html>
