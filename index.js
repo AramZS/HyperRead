@@ -6,16 +6,144 @@ var profile = undefined
 try { profile = JSON.parse(localStorage.profile) }
 catch (e) { console.debug(e) }
 
+// Library dot JSON Book Model:
+
+function LibraryJsonBook(aBook) {
+  this.title = aBook.title
+  this.id = aBook.id
+  this.author = aBook.author
+  this.link = aBook.link || null
+  this.image = aBook.image || null
+  this.date_finished = aBook.date_finished || null
+  var notes = aBook.notes || null;
+  if (aBook.notes && !Array.isArray(aBook.notes)) {
+    notes = [aBook.notes]
+  }
+  this.notes = notes ? notes.map((note) => {
+    return note;
+  }) : []
+  this.binding = aBook.binding || null
+  this.date_started = aBook.date_started ? Date.parse(aBook.date_started) : null
+  this.date_finished = aBook.date_finished ? Date.parse(aBook.date_finished) : null
+  this.last_updated = aBook.last_updated ? Date.parse(aBook.last_updated) : Date.now()
+  this.reviews = aBook.reviews ? aBook.reviews.map((review) => {
+    return {
+      title: review.title,
+      date: Date.parse(review.date),
+      type: review.type === 'long' ? 'long' : 'short',
+      content: review.content,
+      read_status: review.read_status === 'done' ? 'done' : 'reading'
+    }
+  }) : []
+  this.links = aBook.links ? aBook.links.map((link) => {
+    return {
+      url: link.url,
+      last_accessed: link.last_accessed ? Date.parse(link.last_accessed) : null,
+      type: link.type ? link.type : 'external'
+    }
+  }) : []
+  this.image_source = aBook.image_source || null
+  this.publisher = aBook.publisher || null
+  this.additional_authors = aBook.additional_authors || null
+  this.series = aBook.series || null
+  this.tags = aBook.tags ? aBook.tags.map((tag) => {
+    return tag
+  }) : []
+  this.bookIds = aBook.Ids ? aBook.Ids.map((idObj) => {
+    return {
+      type: ['ISBN', 'ISBN13', 'OLID', 'OCLC', 'LCCN', 'URL', 'BCID', 'GOODREADS', 'HYPER'].includes(idObj.type) ? idObj.type : null,
+      id: idObj.id,
+      note: idObj.note ? idObj.note : null // To add information about URLs used as IDs.
+    }
+  }) : []
+}
+
+function inputsToLibraryJsonBook(){
+      var values = {}; 
+    let getInputs = function(nodes, values){
+      nodes.forEach((e) => { 
+        var aValue = e.value ? e.value : undefined; 
+        if (e.type === 'checkbox') {
+          aValue = e.checked;
+        }
+        if (aValue){
+          values[e.name] = aValue;
+        }
+        if (e.value === undefined && e.childNodes.length){
+          getInputs(e.childNodes, values)
+        }
+      });
+    }
+    getInputs(entrybox.childNodes, values)
+    console.log(values);
+    if (values.hasOwnProperty('tags')){
+      var tags = values.tags.split(',')
+      values.tags = tags.map(tag => tag.trim())
+    } else {
+      values.tags = [];
+    }
+    if (values['did-read']){
+      values.tags.push('read')
+    }
+    var filename = values.filename ? values.filename.trim() : ''+Date.now();
+    values.id = filename;
+    values.date_finished = values['did-read'] ? new Date().toDateString() : null;
+    values.last_updated = new Date().toDateString();
+    values.Ids = [
+        {
+          type: 'HYPER',
+          id: Date.now().toString(),
+          note: 'Generated on creation'
+        } 
+    ];
+    if (values.link){
+      values.links = [{ url: values.link }]
+    }
+    if (values.hasOwnProperty('review') || values.hasOwnProperty('review-title')){
+      values.reviews = [
+        {
+          title: values.hasOwnProperty('review-title') && values['review-title'] ? values['review-title'] : 'ReadHyper Review',
+          date: new Date().toDateString(),
+          type: values.hasOwnProperty('review') && (values.review.length <= 250) ? 'short' : 'long',
+          content: values.hasOwnProperty('review') ? values.review : '',
+          read_status: values['did-read'] ? 'done' : 'not finished' 
+        }
+      ]
+    }
+    var book = new LibraryJsonBook(values)
+    return { book, filename, values }
+}
+
 customElements.define('microlibrary-loader', class extends HTMLElement {
   async connectedCallback () {
     if (!profile) {
       this.append(h('button', {click: this.onClickChangeProfile.bind(this)}, 'Select a profile to load your library with'))
     } else {
       this.append(h('form', {submit: this.onSubmit},
-        h('p', 'Your library has been loaded based on ', h('a', {href: 'https://tomcritchlow.com/2020/04/15/library-json/', 'target': '_blank'}, 'library.json')),
+        h('p', 'Your library has been loaded based on ', h('a', {href: 'https://tomcritchlow.com/2020/04/15/library-json/', 'target': '_blank'}, 'library.json'), '. Treating the book objects as flat files in a hyper drive and looking at an additional  `tag` property for sorting into shelves. ', h('a', {href: 'hyper://4b03eb8d11b4786628708ba8d4a4c8daae34a10683b085e46bdf14cffc9ff52d/'}, 'Add me as a contact to get started.')),
         h('p',
           ' ',
-          h('small', h('a', {href: '#', click: this.onClickChangeProfile.bind(this)}, 'Change profile'))
+          h('small', h('a', {href: '#', click: this.onClickChangeProfile.bind(this)}, 'Change profile')), 
+          h('span', { id: 'activate-entry' }, ' ', h('button', {click: this.activateEntry.bind(this)}, 'Enter a new book'))
+        ),
+        h('div', {id: 'entrybox', style: 'display:none'},
+          h('input', {name: 'title', required: true, placeholder: 'Book Title'}),
+          h('input', {name: 'author', required: true, placeholder: 'Book Author'}),
+          h('br'),h('br'),
+          h('p', 
+            h('input', {name: 'review-title', placeholder: 'Enter review title (optional)'}),
+            h('textarea', {name: 'review', placeholder: 'Enter your book review here (optional)'})
+          ),
+          h('input', {name: 'image', placeholder: 'Cover image url (optional)'}),
+          h('input', {name: 'tags', placeholder: 'Comma Seperated Tags (optional)'}),
+          h('label', {class: 'read-check-label'}, 'Did you finish reading the book?'),
+          h('input', {name: 'did-read', id: 'did-read', type: 'checkbox'}),
+          h('br'),
+          h('input', {name: 'publisher', placeholder: 'Publisher (optional)'}),
+          h('input', {name: 'link', placeholder: 'Link (optional)'}),
+          h('br'),
+            h('input', {name: 'filename', placeholder: 'Book id (optional)'}),
+            h('button', {type: 'submit'}, `Post to ${profile.title}'s microlibrary`),
         )
       ))
     }
@@ -23,13 +151,19 @@ customElements.define('microlibrary-loader', class extends HTMLElement {
 
   async onSubmit (e) {
     e.preventDefault()
-    var filename = e.target.filename.value
-    var content = e.target.content.value
-    filename = filename || `${Date.now()}.md`
-    if (filename.indexOf('.') === -1) filename += '.md'
-    await beaker.hyperdrive.drive(profile.url).mkdir(PATH).catch(e => undefined)
-    await beaker.hyperdrive.drive(profile.url).writeFile(PATH + filename, content)
-    location.reload()
+    console.log(entrybox.childNodes)
+    let { book, filename } = inputsToLibraryJsonBook()
+    var builtFilename = filename || `${Date.now()}.json`
+    console.log('Built filename ', builtFilename);
+    if (builtFilename.indexOf('.') === -1) builtFilename += '.json'
+    console.log(book, builtFilename);
+    try {
+      await beaker.hyperdrive.drive(profile.url).mkdir(PATH).catch(e => undefined)
+      await beaker.hyperdrive.drive(profile.url).writeFile(PATH + filename, JSON.stringify(book, null, 4))
+      location.reload()
+    } catch (e) {
+      console.log(e)
+    }
   }
 
   async onClickChangeProfile (e) {
@@ -37,6 +171,34 @@ customElements.define('microlibrary-loader', class extends HTMLElement {
     profile = await beaker.contacts.requestProfile()
     localStorage.profile = JSON.stringify(profile)
     location.reload()
+  }
+
+  async activateEntry (e) {
+    e.preventDefault()
+    var entryForm = document.getElementById('entrybox');
+    let displayToggle = entryForm.style.display === 'none' ? 'block' : 'none';
+    entryForm.style.display = displayToggle;
+    var entryToFill = function(name, value){
+      let el = document.querySelector(`#entrybox *[name="${name}"]`);
+      if (el && value){
+        el.value = value;
+      }
+      return el;
+    }
+    if (localStorage.getItem('bookReviewDraft')){
+      var { values } = JSON.parse(localStorage.getItem('bookReviewDraft'))
+      if (values.hasOwnProperty('did-read')){
+        entryToFill('did-read').checked = values['did-read'];
+        delete values['did-read'];
+      }
+      Object.keys(values).forEach((key)=>{
+        entryToFill(key, values[key])
+      })
+    }
+    entryForm.addEventListener("mouseout", function(){
+      let { book, filename, values } = inputsToLibraryJsonBook()
+      localStorage.setItem('bookReviewDraft', JSON.stringify({ book, filename, values }))
+    })
   }
 })
 
@@ -199,7 +361,7 @@ window.lazyloadTools = {
         let attachIntersectionObserver = true;
         for (let key of Object.keys(window.lazyloadTools.shelves) ){
           if (window.lazyloadTools.shelves.hasOwnProperty(key)){
-            if (document.getElementById('shelf-is-'+key).childElementCount < 10){
+            if (document.getElementById('shelf-is-'+key).childElementCount < 5){
               console.log(key, document.getElementById('shelf-is-'+key).childElementCount)
               await window.lazyloadTools.fillPage(document.getElementById('mlf')) 
               attachIntersectionObserver = false;
