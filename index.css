@@ -87,10 +87,6 @@ microblog-feed {
 .post .content > * + * {
   margin-top: 0.5rem;
 }
-.post .content img,
-.post .content video {
-  max-width: 100%;
-}
 
 .post .tagged {
   font-size: small;
@@ -111,4 +107,19 @@ microlibrary-shelf-select {
   color: black;
   text-decoration: none;
   cursor: pointer;
+}
+
+.json-lib-book-content img {
+  max-width: 150px;
+  max-height: 230px;
+  float: left;
+  margin: 20px;
+  margin-left: 0px;
+  margin-top: 10px;
+}
+
+.json-lib-book-content h4 {
+  margin-bottom: 10px;
+  margin-top: 10px;
+  font-size: 1em;
 }
