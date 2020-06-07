@@ -2,6 +2,7 @@ const IFRAME_CSP = `default-src 'self' 'unsafe-inline';`
 const IFRAME_SANDBOX = `allow-forms allow-scripts allow-popups allow-popups-to-escape-sandbox`
 
 const PATH = '/json-library/'
+const LOCALPATH = '/local-json-library/'
 var profile = undefined
 try { profile = JSON.parse(localStorage.profile) }
 catch (e) { console.debug(e) }
@@ -158,8 +159,16 @@ customElements.define('microlibrary-loader', class extends HTMLElement {
     if (builtFilename.indexOf('.') === -1) builtFilename += '.json'
     console.log(book, builtFilename);
     try {
-      await beaker.hyperdrive.drive(profile.url).mkdir(PATH).catch(e => undefined)
-      await beaker.hyperdrive.drive(profile.url).writeFile(PATH + filename, JSON.stringify(book, null, 4))
+      var bookPathUrl = window.lazyloadTools.profileToSource[profile.url]
+      var pathAccountingForMount = PATH;
+      if (bookPathUrl !== profile.url){
+        // Mount URLs are intrinsically their own path so remove the path when writing to them.
+        pathAccountingForMount = '';
+      } else {
+        await beaker.hyperdrive.drive(bookPathUrl).mkdir(PATH).catch(e => undefined)
+      }
+      await beaker.hyperdrive.drive(bookPathUrl).writeFile(pathAccountingForMount + builtFilename, JSON.stringify(book, null, 4))
+      localStorage.removeItem('bookReviewDraft')
       location.reload()
     } catch (e) {
       console.log(e)
@@ -220,7 +229,8 @@ customElements.define('microlibrary-shelf-select', class extends HTMLElement {
 })
 
 window.lazyloadTools = { 
-      intersectCount: 0, 
+      intersectCount: 0,
+      profileToSource: {},
       c: 0,
       shelves: {},
       intersectObserver:  new IntersectionObserver(async ()=>{ 
@@ -248,8 +258,9 @@ window.lazyloadTools = {
         'currently-reading': document.getElementById('shelf-is-currently-reading')
       },
       fillPage: async function(htmlObj){
+        // window.profileToSource = {};
         try {
-          var sources = []
+          var sources = [];
           if (profile) {
             sources = await beaker.contacts.list()
           }
@@ -257,22 +268,35 @@ window.lazyloadTools = {
           if (profile && !drive.includes(profile.url)) {
             drive.push(profile.url)
           }
-          var files = await beaker.hyperdrive.query({
-            path: PATH + '*.json',
-            drive,
-            sort: 'ctime',
-            reverse: true,
-            offset: window.lazyloadTools.page,
-            limit: window.lazyloadTools.pageLimit
-          })
-          console.log({
-            path: PATH + '*.json',
-            drive,
-            sort: 'ctime',
-            reverse: true,
-            offset: window.lazyloadTools.page,
-            limit: window.lazyloadTools.pageLimit
-          }, files)
+          var files = [];
+          var resolves = drive.map(async (driveUrl) => {
+            var perDriveFiles = await beaker.hyperdrive.query({
+              path: PATH + '*.json',
+              drive: [driveUrl],
+              sort: 'ctime',
+              reverse: true,
+              offset: window.lazyloadTools.page,
+              limit: window.lazyloadTools.pageLimit
+            })
+            var locationMappedPerDriveFiles = perDriveFiles.map((file) => {file.profileDrive = driveUrl; return file;});
+            if (locationMappedPerDriveFiles && locationMappedPerDriveFiles.length > 0 && !window.lazyloadTools.profileToSource.hasOwnProperty(locationMappedPerDriveFiles[0].profileDrive)){
+              window.lazyloadTools.profileToSource[locationMappedPerDriveFiles[0].profileDrive] = locationMappedPerDriveFiles[1].drive;
+            }
+            /**
+             * 
+            console.log({
+              path: PATH + '*.json',
+              drive,
+              sort: 'ctime',
+              reverse: true,
+              offset: window.lazyloadTools.page,
+              limit: window.lazyloadTools.pageLimit
+            }, files)
+            */
+            files = files.concat(locationMappedPerDriveFiles)
+            return locationMappedPerDriveFiles;
+          });
+          await Promise.all(resolves)
         } catch (e) {
           // htmlObj.textContent = e.toString()
           console.debug(`Unable to query ${PATH}`, e)
@@ -283,10 +307,9 @@ window.lazyloadTools = {
         }
         for (let file of files) {
           let postDiv = h('div', {class: 'post'})
-          
           postDiv.append(
-            h('a', {class: 'thumb', href: file.drive},
-              h('img', {src: `${file.drive}thumb.png`})
+            h('a', {class: 'thumb', href: file.profileDrive},
+              h('img', {src: `${file.profileDrive}thumb.png`})
             )
           )
 
