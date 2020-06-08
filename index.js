@@ -618,7 +618,8 @@ function applyDataToForm(e, bookJson){
             e.value = bookJson.image ? bookJson.image : '';
             break;
           case 'tags':
-            e.value = bookJson.tags.join(', ')
+          console.log('tags', bookJson)
+            e.value = bookJson.tags ? bookJson.tags.join(', ') : ''
             break;
           case 'did-read':
             e.checked = bookJson.tags.includes('read') || bookJson.date_finished ? true : false;
@@ -635,28 +636,28 @@ function applyDataToForm(e, bookJson){
 }
 
 customElements.define('edit-jsonbook', class extends ManipulateJSONBook {
-  async _onClick(){
-    var el = this.parentElement;
-    let bookText = await beaker.hyperdrive.readFile(el.getAttribute('data-hyper-uri'))
-    var bookJson = JSON.parse(bookText)
+  _onClick = async (thisEl) => {
+    console.log(thisEl.target)
+    var el = thisEl.target.parentElement;
+    let editBookText = await beaker.hyperdrive.readFile(el.getAttribute('data-hyper-uri'))
+    var editBookJson = JSON.parse(editBookText)
 
-    console.log('edit book - ', el, bookJson)
-    
+    console.log('edit book - ', el, editBookJson)
+    if (entrybox.style.display === "none"){
+      var activate = document.querySelector('#activate-entry button'); activate.click();
+    }
+    document.forms[0].reset();
     entrybox.childNodes.forEach(
       (e) => {
         if (e.tagName === 'P'){
           e.childNodes.forEach((pe) => {
-            applyDataToForm(pe, bookJson)
+            applyDataToForm(pe, editBookJson)
           })
-        }
-        else {
-          applyDataToForm(e, bookJson)
+        } else {
+          applyDataToForm(e, editBookJson)
         }
       }
     )
-    if (entrybox.style.display === "none"){
-      var activate = document.querySelector('#activate-entry button'); activate.click();
-    }
     document.forms[0].scrollIntoView({behavior: 'smooth', block: 'nearest'});
   }
 })
