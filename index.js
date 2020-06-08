@@ -14,8 +14,7 @@ function LibraryJsonBook(aBook) {
   this.id = aBook.id
   this.author = aBook.author
   this.link = aBook.link || null
-  this.image = aBook.image || null
-  this.date_finished = aBook.date_finished || null
+  this.image = aBook.image || null;
   var notes = aBook.notes || null;
   if (aBook.notes && !Array.isArray(aBook.notes)) {
     notes = [aBook.notes]
@@ -24,13 +23,13 @@ function LibraryJsonBook(aBook) {
     return note;
   }) : []
   this.binding = aBook.binding || null
-  this.date_started = aBook.date_started ? Date.parse(aBook.date_started) : null
-  this.date_finished = aBook.date_finished ? Date.parse(aBook.date_finished) : null
-  this.last_updated = aBook.last_updated ? Date.parse(aBook.last_updated) : Date.now()
+  this.date_started = aBook.date_started ? Date.parse(new Date(aBook.date_started)) : null
+  this.date_finished = aBook.date_finished ? Date.parse(new Date(aBook.date_finished)) : null
+  this.last_updated = aBook.last_updated ? Date.parse(new Date(aBook.last_updated)) : Date.now()
   this.reviews = aBook.reviews ? aBook.reviews.map((review) => {
     return {
       title: review.title,
-      date: Date.parse(review.date),
+      date: Date.parse(new Date(review.date)),
       type: review.type === 'long' ? 'long' : 'short',
       content: review.content,
       read_status: review.read_status === 'done' ? 'done' : 'reading'
@@ -39,7 +38,7 @@ function LibraryJsonBook(aBook) {
   this.links = aBook.links ? aBook.links.map((link) => {
     return {
       url: link.url,
-      last_accessed: link.last_accessed ? Date.parse(link.last_accessed) : null,
+      last_accessed: link.last_accessed ? Date.parse(new Date(link.last_accessed)) : null,
       type: link.type ? link.type : 'external'
     }
   }) : []
@@ -57,7 +56,66 @@ function LibraryJsonBook(aBook) {
       note: idObj.note ? idObj.note : null // To add information about URLs used as IDs.
     }
   }) : []
+  if (aBook.bookIds){
+    this.bookIds = aBook.bookIds;
+  }
 }
+
+LibraryJsonBook.prototype.fill = function(newBook, reverse){
+  var newLbryBook = new LibraryJsonBook(newBook)
+  newLbryBook.notes = newLbryBook.notes.concat(this.notes);
+  if (newLbryBook.bookIds.length <= 0){
+    newLbryBook.bookIds = this.bookIds;
+  } else {
+    this.bookIds.forEach((anId) => {
+      var check = newLbryBook.bookIds.findIndex((elm) => {
+        if (anId.type && elm.type && elm.type.trim() === anId.type.trim()) {
+          return true;
+        } else {
+          return false;
+        }
+      });
+      if (check >= 0) {
+
+      } else {
+        newLbryBook.bookIds.push(anId)
+      }
+    })
+  }
+  if (newLbryBook.links.length <= 0){
+    newLbryBook.links = this.links;
+  } else {
+    this.links.forEach((aLink) => {
+      var check = newLbryBook.links.findIndex((elm) => {
+        if (aLink.url && elm.url && elm.url.trim() === aLink.url.trim()) {
+          return true;
+        } else {
+          return false;
+        }
+      });
+      if (check >= 0) {
+
+      } else {
+        newLbryBook.links.push(url)
+      }
+    })
+  }
+
+  if (this.image && this.image_source){
+    if (!newLbryBook.image || (newLbryBook.image == this.image)){
+      newLbryBook.image_source = this.image_source;
+      newLbryBook.image = this.image;
+    }
+  }
+
+  if (reverse){
+    return Object.assign(newLbryBook, this);
+  } else {
+    return Object.assign(this, newLbryBook);
+  }
+}
+
+window.LibraryJsonBook = LibraryJsonBook;
 
 function inputsToLibraryJsonBook(){
       var values = {}; 
@@ -83,13 +141,13 @@ function inputsToLibraryJsonBook(){
     } else {
       values.tags = [];
     }
-    if (values['did-read']){
+    if (values['did-read'] && !values.tags.includes('read')){
       values.tags.push('read')
     }
     var filename = values.filename ? values.filename.trim() : ''+Date.now();
     values.id = filename;
-    values.date_finished = values['did-read'] ? new Date().toDateString() : null;
-    values.last_updated = new Date().toDateString();
+    values.date_finished = values['did-read'] ? Date.now() : null;
+    values.last_updated = Date.now();
     values.Ids = [
         {
           type: 'HYPER',
@@ -104,7 +162,7 @@ function inputsToLibraryJsonBook(){
       values.reviews = [
         {
           title: values.hasOwnProperty('review-title') && values['review-title'] ? values['review-title'] : 'ReadHyper Review',
-          date: new Date().toDateString(),
+          date: Date.now(),
           type: values.hasOwnProperty('review') && (values.review.length <= 250) ? 'short' : 'long',
           content: values.hasOwnProperty('review') ? values.review : '',
           read_status: values['did-read'] ? 'done' : 'not finished' 
@@ -167,9 +225,57 @@ customElements.define('microlibrary-loader', class extends HTMLElement {
       } else {
         await beaker.hyperdrive.drive(bookPathUrl).mkdir(PATH).catch(e => undefined)
       }
+      var fileUri = bookPathUrl + pathAccountingForMount + builtFilename;
+      try { 
+        let bookText = await beaker.hyperdrive.drive(bookPathUrl).readFile(pathAccountingForMount + builtFilename);
+        var oldBookJson = JSON.parse(bookText)
+        var oldBookObj = new LibraryJsonBook(oldBookJson)
+        book = oldBookObj.fill(book, false);
+        console.log('Book updated', book)
+      } catch (e) {
+        console.log('New Book being created.', e)
+      }
       await beaker.hyperdrive.drive(bookPathUrl).writeFile(pathAccountingForMount + builtFilename, JSON.stringify(book, null, 4))
-      localStorage.removeItem('bookReviewDraft')
-      location.reload()
+      var shelf = 'to-read';
+      if (book.tags.includes('currently-reading')){
+        shelf = 'currently-reading';
+      } else if (book.tags.includes('read')){
+        shelf = 'read'
+      }
+      var file = await beaker.hyperdrive.query({
+                    path: pathAccountingForMount + builtFilename,
+                    drive: [ bookPathUrl ],
+                    sort: 'ctime',
+                    reverse: true,
+                    offset: 0,
+                    limit:1
+                  })
+      file[0].profileDrive = profile.url;
+      var postDiv = window.lazyloadTools.postDiv(file[0], book);
+      if (postDiv === false){
+        console.log('Post div build failed ', postDiv);
+        location.reload()
+      } else {
+        var existingPost = document.querySelector('*[data-hyper-uri="'+fileUri+'"]')
+        if (existingPost){
+          existingPost.remove();
+        }
+        var shelfDiv = document.getElementById('shelf-is-'+postDiv.isShelf);
+        shelfDiv.prepend(postDiv)
+        var activate = document.querySelector('#activate-entry button'); activate.click();
+        document.forms[0].reset();
+        localStorage.removeItem('bookReviewDraft')
+      }
+      /**
+      var bookHtml = window.bookBuilder(book, shelf);
+      var shelfDiv = document.getElementById('shelf-is-'+postDiv.isShelf);
+      if (!shelf.lastChild && bookHtml){
+        console.log('First post ', bookHtml)
+        shelfDiv.prepend(bookHtml)
+      } else if (bookHtml) {
+        shelfDiv.lastChild.after(bookHtml)
+      }
+       */
     } catch (e) {
       console.log(e)
     }
@@ -233,6 +339,66 @@ window.lazyloadTools = {
       profileToSource: {},
       c: 0,
       shelves: {},
+      postDiv: function(file, bookJson){
+          let postDiv = h('div', {class: 'post'})
+          postDiv.append(
+            h('a', {class: 'thumb', href: file.profileDrive},
+              h('img', {src: `${file.profileDrive}thumb.png`})
+            )
+          )
+
+          let filename = file.path.split('/').pop()
+          let day = niceDate(file.stat.ctime)
+          postDiv.append(h('div', {class: 'meta'}, 
+            h('a', {href: file.url, title: filename}, filename),
+            ' ',
+            day
+          ))
+          postDiv.append((h('edit-jsonbook', {class: 'book-edit-button'}, 'Edit')));
+          postDiv.setAttribute('data-hyper-uri', file.url);
+          try {
+            if (/\.html?$/i.test(file.path)) {
+                let content = h('iframe', {
+                  class: 'content',
+                  csp: IFRAME_CSP,
+                  sandbox: IFRAME_SANDBOX,
+                  src: file.url
+                })
+                postDiv.append(content)
+            } else {
+              
+              if (/\.json$/i.test(file.path)) {
+
+                if (!bookJson.hasOwnProperty('tags')){
+                  return false;
+                }
+                var classes = 'content '
+                if (bookJson.tags.includes('read')){
+                  postDiv.classList.add('read')
+                  postDiv.isShelf = 'read';
+                  window.lazyloadTools.shelves['read'] = true
+                } else if (bookJson.tags.includes('currently-reading')){
+                  postDiv.classList.add('currently-reading')
+                  postDiv.isShelf = 'currently-reading';
+                  window.lazyloadTools.shelves['currently-reading'] = true
+                } else {
+                  postDiv.classList.add('to-read')
+                  postDiv.isShelf = 'to-read';
+                  window.lazyloadTools.shelves['to-read'] = true
+                }
+                let content = h('div', {class: classes})
+                content.append(book(bookJson, postDiv.isShelf))
+                content.setAttribute('data-count', window.lazyloadTools.c++);
+                postDiv.append(content);
+                return postDiv;
+              }
+            }
+          } catch (e) {
+            console.error('Failed to read', file.url)
+            console.error(e)
+            return false;
+          }
+      },
       intersectObserver:  new IntersectionObserver(async ()=>{ 
         console.log('Intersected.'); 
         if (window.lazyloadTools.intersectCount === 1){
@@ -306,62 +472,17 @@ window.lazyloadTools = {
           return;
         }
         for (let file of files) {
-          let postDiv = h('div', {class: 'post'})
-          postDiv.append(
-            h('a', {class: 'thumb', href: file.profileDrive},
-              h('img', {src: `${file.profileDrive}thumb.png`})
-            )
-          )
-
-          let filename = file.path.split('/').pop()
-          let day = niceDate(file.stat.ctime)
-          postDiv.append(h('div', {class: 'meta'}, 
-            h('a', {href: file.url, title: filename}, filename),
-            ' ',
-            day
-          ))
-
+          var postDiv;
           try {
             if (/\.html?$/i.test(file.path)) {
-                let content = h('iframe', {
-                  class: 'content',
-                  csp: IFRAME_CSP,
-                  sandbox: IFRAME_SANDBOX,
-                  src: file.url
-                })
-                postDiv.append(content)
-            } else {
-              let bookText = await beaker.hyperdrive.readFile(file.url)
-              if (/\.json$/i.test(file.path)) {
-                
+                postDiv = window.lazyloadTools.postDiv(file, false);
+            } else if (/\.json$/i.test(file.path)) {
+                let bookText = await beaker.hyperdrive.readFile(file.url)
                 var bookJson = JSON.parse(bookText)
-                if (!bookJson.hasOwnProperty('tags')){
+                postDiv = window.lazyloadTools.postDiv(file, bookJson);
+                if (postDiv === false){
                   continue;
                 }
-                var classes = 'content '
-                if (bookJson.tags.includes('read')){
-                  postDiv.classList.add('read')
-                  postDiv.isShelf = 'read';
-                  window.lazyloadTools.shelves['read'] = true
-                } else if (bookJson.tags.includes('currently-reading')){
-                  postDiv.classList.add('currently-reading')
-                  postDiv.isShelf = 'currently-reading';
-                  window.lazyloadTools.shelves['currently-reading'] = true
-                } else {
-                  postDiv.classList.add('to-read')
-                  postDiv.isShelf = 'to-read';
-                  window.lazyloadTools.shelves['to-read'] = true
-                }
-                let content = h('div', {class: classes})
-                // console.log((this.c >= Math.floor(window.lazyloadTools.pageLimit / 2)), (this.c <= Math.ceil(window.lazyloadTools.pageLimit / 2)), (this.c === (window.lazyloadTools.pageLimit / 2)), this.c, window.lazyloadTools.pageLimit/2);
-                // if ((this.c >= Math.floor(window.lazyloadTools.pageLimit / 2) && this.c <= Math.ceil(window.lazyloadTools.pageLimit / 2) ) || this.c === (window.lazyloadTools.pageLimit / 2)){
-                //  console.log('Attach intersection observer to ', content )
-                //  window.lazyloadTools.intersectObserver.observe(content)
-                //}
-                content.append(book(bookJson, postDiv.isShelf))
-                content.setAttribute('data-count', window.lazyloadTools.c++);
-                postDiv.append(content)
-              }
             }
           } catch (e) {
             console.error('Failed to read', file.path)
@@ -435,7 +556,118 @@ customElements.define('microlibrary-shelf', class extends HTMLElement {
   }
 })
 
+class ManipulateJSONBook extends HTMLElement {
+  constructor() {
+    // Always call super first in constructor
+    super();
+  }
+  async connectedCallback () {
+    this.addEventListener('click', this._onClick);
+    this.className += " book-editor"
+    return false;
+  }
+  async disconnectedCallback (){
+    this.removeEventListener('click', this._onClick);
+  }
+  _onClick(){
+    var el = this.parentElement;
+    console.log(el)
+  }
+}
+/**
+ * 
+ *         h('div', {id: 'entrybox', style: 'display:none'},
+          h('input', {name: 'title', required: true, placeholder: 'Book Title'}),
+          h('input', {name: 'author', required: true, placeholder: 'Book Author'}),
+          h('br'),h('br'),
+          h('p', 
+            h('input', {name: 'review-title', placeholder: 'Enter review title (optional)'}),
+            h('textarea', {name: 'review', placeholder: 'Enter your book review here (optional)'})
+          ),
+          h('input', {name: 'image', placeholder: 'Cover image url (optional)'}),
+          h('input', {name: 'tags', placeholder: 'Comma Seperated Tags (optional)'}),
+          h('label', {class: 'read-check-label'}, 'Did you finish reading the book?'),
+          h('input', {name: 'did-read', id: 'did-read', type: 'checkbox'}),
+          h('br'),
+          h('input', {name: 'publisher', placeholder: 'Publisher (optional)'}),
+          h('input', {name: 'link', placeholder: 'Link (optional)'}),
+          h('br'),
+            h('input', {name: 'filename', placeholder: 'Book id (optional)'}),
+            h('button', {type: 'submit'}, `Post to ${profile.title}'s microlibrary`),
+        )
+ */
+
+function applyDataToForm(e, bookJson){
+      switch (e.name) {
+          case 'title':
+            e.value = bookJson.title;
+            break;
+          case 'filename':
+            e.value = bookJson.id;
+            break;
+          case 'author':
+            e.value = bookJson.author
+            break;
+          case 'review-title':
+            e.value = bookJson.reviews.length ? bookJson.reviews[0].title : ''
+            break;
+          case 'review':
+            e.value = bookJson.reviews.length ? bookJson.reviews[0].content : ''
+            break;
+          case 'image':
+            e.value = bookJson.image ? bookJson.image : '';
+            break;
+          case 'tags':
+            e.value = bookJson.tags.join(', ')
+            break;
+          case 'did-read':
+            e.checked = bookJson.tags.includes('read') || bookJson.date_finished ? true : false;
+            break;
+          case 'publisher':
+            e.value = bookJson.publisher;
+            break;
+          case 'link':
+            e.value = bookJson.links.length ? bookJson.links[0].url : '';
+            break;
+          default:
+            break;
+        }
+}
+
+customElements.define('edit-jsonbook', class extends ManipulateJSONBook {
+  async _onClick(){
+    var el = this.parentElement;
+    let bookText = await beaker.hyperdrive.readFile(el.getAttribute('data-hyper-uri'))
+    var bookJson = JSON.parse(bookText)
+
+    console.log('edit book - ', el, bookJson)
+    
+    entrybox.childNodes.forEach(
+      (e) => {
+        if (e.tagName === 'P'){
+          e.childNodes.forEach((pe) => {
+            applyDataToForm(pe, bookJson)
+          })
+        }
+        else {
+          applyDataToForm(e, bookJson)
+        }
+      }
+    )
+    if (entrybox.style.display === "none"){
+      var activate = document.querySelector('#activate-entry button'); activate.click();
+    }
+    document.forms[0].scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  }
+})
+
+customElements.define('remove-jsonbook', class extends ManipulateJSONBook {
+
+})
+
+
 window.lazyloadTools.fillPage(document.getElementById('mlf'));
+
 
 function book (libJsonBook, shelf){
   let action = 'wants to read'
@@ -469,6 +701,8 @@ function book (libJsonBook, shelf){
     )
   ))
 }
+
+window.bookBuilder = book;
 
 function h (tag, attrs, ...children) {
   var el = document.createElement(tag)
