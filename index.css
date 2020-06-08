@@ -131,6 +131,14 @@ microlibrary-shelf-select {
   background-color: lightblue;
 }
 
+#entrybox input[name=title] {
+  width: 250px;
+}
+
+#entrybox input[name=review-title] {
+  width: 85%;
+}
+
 .book-editor {
     appearance: button;
     -webkit-writing-mode: horizontal-tb !important;
