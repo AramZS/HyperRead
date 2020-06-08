@@ -96,7 +96,7 @@ LibraryJsonBook.prototype.fill = function(newBook, reverse){
       if (check >= 0) {
 
       } else {
-        newLbryBook.links.push(url)
+        newLbryBook.links.push(aLink)
       }
     })
   }
@@ -354,7 +354,11 @@ window.lazyloadTools = {
             ' ',
             day
           ))
-          postDiv.append((h('edit-jsonbook', {class: 'book-edit-button'}, 'Edit')));
+          if (file.profileDrive == profile.url){
+            postDiv.append((h('edit-jsonbook', {class: 'book-edit-button'}, 'Edit')));
+          } else {
+            postDiv.append((h('edit-jsonbook', {class: 'book-edit-button'}, 'Clone')));
+          }
           postDiv.setAttribute('data-hyper-uri', file.url);
           try {
             if (/\.html?$/i.test(file.path)) {
@@ -663,7 +667,19 @@ customElements.define('edit-jsonbook', class extends ManipulateJSONBook {
 })
 
 customElements.define('remove-jsonbook', class extends ManipulateJSONBook {
+  _onClick = async (thisEl) => {
+    console.log(thisEl.target)
+    var el = thisEl.target.parentElement;
+    let editBookText = await beaker.hyperdrive.readFile(el.getAttribute('data-hyper-uri'))
+    var editBookJson = JSON.parse(editBookText)
+    var bookJson = new LibraryJsonBook(editBookJson);
 
+    console.log('delete book - ', el, editBookJson)
+    if (window.confirm(`Do you really want to delete your entry for ${bookJson.title}?`)){
+      console.log('delete confirmed');
+      el.remove();
+    }
+  }
 })
 
 
