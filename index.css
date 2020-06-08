@@ -50,9 +50,12 @@ microblog-feed {
 .post {
   display: grid;
   grid-gap: 5px;
-  grid-template-columns: 60px 1fr;
+  grid-template-columns: 60px 1fr 1fr;
   grid-template-rows: auto auto;
   margin-bottom: 30px;
+}
+.post .content {
+  grid-column: 2 / span 2;
 }
 .post h1 { font-size: 21px; }
 .post h2 { font-size: 20px; }
@@ -126,4 +129,32 @@ microlibrary-shelf-select {
 
 #entrybox button {
   background-color: lightblue;
+}
+
+.book-editor {
+    appearance: button;
+    -webkit-writing-mode: horizontal-tb !important;
+    text-rendering: auto;
+    color: -internal-light-dark-color(buttontext, rgb(170, 170, 170));
+    letter-spacing: normal;
+    word-spacing: normal;
+    text-transform: none;
+    text-indent: 0px;
+    text-shadow: none;
+    display: inline-block;
+    text-align: center;
+    align-items: flex-start;
+    background-color: -internal-light-dark-color(rgb(239, 239, 239), rgb(74, 74, 74));
+    box-sizing: border-box;
+    margin: 0em;
+    font: 400 13.3333px Arial;
+    border: 1px solid #888;
+    background: #fff;
+    border-radius: 3px;
+    height: 28px;
+    margin-right: 6px;
+    box-shadow: 0 1px 2px #00000017;
+    width: fit-content;
+    padding: 5px 10px;
+    cursor: pointer;
 }
