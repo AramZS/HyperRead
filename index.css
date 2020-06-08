@@ -53,6 +53,8 @@ microblog-feed {
   grid-template-columns: 60px 1fr 1fr;
   grid-template-rows: auto auto;
   margin-bottom: 30px;
+  padding: 5px 0px;
+  border-bottom: 1px gray solid;
 }
 .post .content {
   grid-column: 2 / span 2;
