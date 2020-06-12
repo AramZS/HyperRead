@@ -219,7 +219,7 @@ customElements.define('microlibrary-loader', class extends HTMLElement {
     try {
       var bookPathUrl = window.lazyloadTools.profileToSource[profile.url]
       var pathAccountingForMount = PATH;
-      if (bookPathUrl !== profile.url){
+      if (bookPathUrl && bookPathUrl !== profile.url){
         // Mount URLs are intrinsically their own path so remove the path when writing to them.
         pathAccountingForMount = '';
       } else {
@@ -235,7 +235,13 @@ customElements.define('microlibrary-loader', class extends HTMLElement {
       } catch (e) {
         console.log('New Book being created.', e)
       }
-      await beaker.hyperdrive.drive(bookPathUrl).writeFile(pathAccountingForMount + builtFilename, JSON.stringify(book, null, 4))
+      try {
+        await beaker.hyperdrive.drive(bookPathUrl).writeFile(pathAccountingForMount + builtFilename, JSON.stringify(book, null, 4))
+      } catch (e) {
+        await beaker.hyperdrive.drive(profile.url).writeFile(PATH + builtFilename, JSON.stringify(book, null, 4))
+        pathAccountingForMount = PATH;
+        bookPathUrl = profile.url;
+      }
       var shelf = 'to-read';
       if (book.tags.includes('currently-reading')){
         shelf = 'currently-reading';
@@ -360,6 +366,7 @@ window.lazyloadTools = {
             postDiv.append((h('edit-jsonbook', {class: 'book-edit-button'}, 'Clone')));
           }
           postDiv.setAttribute('data-hyper-uri', file.url);
+          postDiv.setAttribute('data-profile-uri', profile.url);
           try {
             if (/\.html?$/i.test(file.path)) {
                 let content = h('iframe', {
@@ -450,7 +457,7 @@ window.lazyloadTools = {
             })
             var locationMappedPerDriveFiles = perDriveFiles.map((file) => {file.profileDrive = driveUrl; return file;});
             if (locationMappedPerDriveFiles && locationMappedPerDriveFiles.length > 0 && !window.lazyloadTools.profileToSource.hasOwnProperty(locationMappedPerDriveFiles[0].profileDrive)){
-              window.lazyloadTools.profileToSource[locationMappedPerDriveFiles[0].profileDrive] = locationMappedPerDriveFiles[1].drive;
+              window.lazyloadTools.profileToSource[locationMappedPerDriveFiles[0].profileDrive] = locationMappedPerDriveFiles[0].drive;
             }
             /**
              * 
@@ -629,7 +636,7 @@ function applyDataToForm(e, bookJson){
             e.checked = bookJson.tags.includes('read') || bookJson.date_finished ? true : false;
             break;
           case 'publisher':
-            e.value = bookJson.publisher;
+            e.value = bookJson.publisher.length > 0 ? bookJson.publisher : '';
             break;
           case 'link':
             e.value = bookJson.links.length ? bookJson.links[0].url : '';
